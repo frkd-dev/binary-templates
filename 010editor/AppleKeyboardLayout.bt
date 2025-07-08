@@ -1,0 +1,129 @@
+//------------------------------------------------
+//--- 010 Editor Binary Template ---
+//
+//      File: /System/Library/Keyboard Layouts/AppleKeyboardLayouts.bundle/Contents/Resources/AppleKeyboardLayouts-L.dat
+//   Authors: vit9696, frkd_dev
+//   Version: 2025.07.08
+//   Purpose: Apple's proprietary keyboard layout decoding
+//  Category: Operating System
+// File Mask: *.dat
+//  ID Bytes: 02 EF CD AB
+//   History:
+//            2025.07.08 - restructure and rename structs, decode two previously unknown arrays
+//            2023.06.27 - parsing of the whole file with data
+//            2018.1 - published at https://github.com/acidanthera/OpenCorePkg/blob/master/Utilities/AppleKeyboardLayouts/AppleKeyboardLayouts.bt
+// Copyright (c) 2023,2025 frkd_dev
+// Copyright (c) 2018 vit9696
+//------------------------------------------------
+
+void SkipPadding(uint64 start)
+{
+    local uint64 size = FTell() - start;
+
+    /* Data in this file use four bytes alignment almost everywhere. */
+    local uint64 padding = (4 - (size & 3)) & 3;
+
+    FSkip(padding);
+}
+
+typedef struct {
+    int32 offset <format=hex>;
+    uint32 index <format=decimal>;
+} IndexedOffset <read=Str("index=%u name=%s", this.index, ReadString(this.offset))>;
+
+typedef struct {
+    int32 layoutID;
+    uint32 layoutIndex;
+} IndexedLayoutID <read=Str("index=%u id=%i", this.layoutIndex, this.layoutID)>;
+
+typedef struct {
+    uint32 magic <format=hex>;
+    uint32 layoutCount;
+    uint32 layoutInfoTableOffset <format=hex>;
+    uint32 unknown1;
+    uint32 sortedLayoutTableOffset <format=hex>;
+    uint32 unkDataOffset2 <format=hex>;
+    uint32 unknown2;
+    uint32 unknown3;
+} FileHeader;
+
+typedef struct {
+    uint32 zero;
+    uint32 layoutNameOffset <format=hex>; /* e.g. Czech-QWERTY */
+    int32  layoutID <format=decimal>; /* e.g. 30778 */
+    uint32 flags; /* ScriptCode? */
+    uint32 localeOffset <format=hex>; /* e.g. cs */
+    uint32 unknown;
+    uint32 layoutDataSize;
+    uint32 layoutDataOffset <format=hex>;
+    uint32 unicodeRangesSize;
+    uint32 unicodeRangesOffset <format=hex>;
+    uint32 iconSize;
+    uint32 iconOffset <format=hex>;
+    uint32 modPlistSize;
+    uint32 modPlistOffset <format=hex>;
+    uint32 plistSize;
+    uint32 plistOffset <format=hex>;
+} LayoutInfo <read=Str("id=%i name=%s", this.layoutID, ReadString(this.layoutNameOffset))>;
+
+typedef struct (LayoutInfo& info) {
+    string layoutName;
+    SkipPadding(startof(layoutName));
+
+    /* In rare cases locale offset could be empty */
+    if (info.localeOffset) {
+        string locale;
+        SkipPadding(startof(locale));
+    }
+
+    wchar_t layout[info.layoutDataSize / 2];
+    SkipPadding(startof(layout));
+
+    wchar_t unicodeRange[info.unicodeRangesSize];
+    SkipPadding(startof(unicodeRange));
+
+    if (info.iconOffset != 0 && info.iconSize != 0) {
+        byte icon[info.iconSize];
+        SkipPadding(startof(icon));
+    }
+
+    if (info.modPlistOffset != 0 && info.modPlistSize != 0) {
+        byte modPlist[info.modPlistSize];
+        SkipPadding(startof(modPlist));
+    }
+
+    if (info.plistOffset != 0 && info.plistSize != 0) {
+        /* #include "BPlist.bt" */
+        byte plist[info.plistSize];
+        SkipPadding(startof(plist));
+    }
+} LayoutData <read=this.layoutName>;
+
+typedef struct {
+    local int i;
+    FileHeader fileHeader;
+
+    Assert(fileHeader.magic == 0xABCDEF02, "Invalid magic!");
+
+    struct {
+        for(i = 0; i < fileHeader.layoutCount; i++)
+            LayoutInfo info;
+    } layoutInfo <comment="An information array about each layout in a file (size, offset to data, id, icon, etc.)">;
+
+    struct {
+        for(i = 0; i < fileHeader.layoutCount; i++)
+            IndexedOffset item;
+    } sortedLayoutNameIndexes <comment="Array of layout indexes and offsets sorted by a layout name">;
+
+    struct {
+        for(i = 0; i < fileHeader.layoutCount; i++)
+            IndexedLayoutID item;
+    } sortedLayoutIDIndexes <comment="Array of layout IDs and indexes sorted by a layout ID">;
+
+    struct {
+        for(i = 0;i < fileHeader.layoutCount; i++)
+            LayoutData data(layoutInfo.info[i]);
+    } layoutData <comment="Array of layout data referenced in info">;
+} KeyboardLayout;
+
+KeyboardLayout keyboardLayoutFile;
