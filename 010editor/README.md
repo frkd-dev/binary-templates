@@ -26,3 +26,13 @@ For instance, a proprietary format supports a monochrome Retina-friendly vector 
 - Some fields remain unclear in a layout information structure
 
 NOTE: 010 Editor has a template for bplist, so it should be properly imported and used.
+
+## MP4 and QuickTime
+
+**Description**
+
+A much improved version of MP4 binary template from SweetScape with focus on extending a QuickTime metadata parsing.
+
+ISO/IEC 14496 (Parts 12, 14) and [QuickTime official](https://developer.apple.com/documentation/quicktime-file-format/) documents were heavily consulted to make these changes.
+
+NOTE: for a revision history, check comments in the file
