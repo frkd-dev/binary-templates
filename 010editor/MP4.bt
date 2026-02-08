@@ -9,6 +9,7 @@
 // File Mask: *.mp4,*.mov,*.m4v
 //  ID Bytes: [+4] 66 74 79 70, [+4] 6D 6F 6F 76, [+4] 6D 64 61 74
 //   History:
+//   3.6   2026-02-08 O. Shashkevych: fix: files with multiple compatible_brands can't be parsed
 //   3.5   2025-11-17 O. Shashkevych: Numerous improvements as per QT documentation (metadata support, better types, zero sized atoms), and unified code style.
 //   3.4   2020-11-10 SweetScape: tkhd, mvhd, mdhd, and elst now support 64-bit (version=1).
 //   3.3   2019-08-08 M. Musa: Modified box logic to respect box size in header.
@@ -34,7 +35,6 @@ struct meta_key;
 struct ilst_item;
 
 typedef char fourcc[4] <open=suppress>;
-typedef fourcc compatible_brand <open=suppress>;
 typedef uint32 mp4time <read=ReadTime, open=suppress>;
 typedef uint64 mp4time64 <read=ReadTime64, open=suppress>;
 typedef uint16 mp4lang <read=ReadLang, open=suppress>;
@@ -431,6 +431,13 @@ string Undocumented()
 {
     return "This is undocumented by a specification.";
 }
+
+// compatible_brand is very actually a fourcc (which is char[] typedef), but QuickTime documentation says
+// a file may contain a list of compatible_brand, but fourcc as plain array can't
+// be used in loops, thus, struct becomes necessary.
+typedef struct {
+    char brand[4];
+} compatible_brand <open=suppress>;
 
 typedef struct
 {
@@ -831,11 +838,12 @@ typedef struct
                 fourcc major_brand <name="Major Brand">;
                 uint32 minor_version <format=hex, name="Minor Version">;
                 if (major_brand == "qt  ") is_qt = 1;
+                local uint64 end = startof(major_brand) + content_size;
 
-                while (FTell() < startof(major_brand) + content_size)
-                {
+                while (ReadByte() != 0 && FTell() < end)
                     compatible_brand brand <name="Compatible Brand">;
-                }
+
+                FSeek(end);
                 break;
             case "free": // qt+mp4, container: any
             case "skip": // qt+mp4, container: any
