@@ -432,9 +432,8 @@ string Undocumented()
     return "This is undocumented by a specification.";
 }
 
-// compatible_brand is very actually a fourcc (which is char[] typedef), but QuickTime documentation says
-// a file may contain a list of compatible_brand, but fourcc as plain array can't
-// be used in loops, thus, struct becomes necessary.
+// compatible_brand is a fourcc in fact, but QuickTime documentation says a file may contain a list of compatible_brands,
+// but arrays can't be duplicated in loops, so a struct type becomes necessary for compatible_brand.
 typedef struct {
     char brand[4];
 } compatible_brand <open=suppress>;
